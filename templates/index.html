@@ -98,60 +98,21 @@
     <header class="bg-primary text-white shadow-md">
         <div class="container mx-auto px-4 py-3 md:py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
             <h1 class="text-lg md:text-2xl font-bold text-center sm:text-left">DLC Surveillance System</h1>
-            <a href="/logout" class="bg-red-800 hover:bg-red-700 px-6 py-2 rounded-lg transition duration-200 text-sm font-semibold shadow-inner w-full sm:w-auto text-center">
-                Logout
-            </a>
+            <div class="flex gap-3 w-full sm:w-auto">
+                <a href="/admin" class="flex-grow sm:flex-initial bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg transition duration-200 text-sm font-semibold shadow-inner text-center">
+                    Manage Cameras
+                </a>
+                <a href="/logout" class="flex-grow sm:flex-initial bg-red-800 hover:bg-red-700 px-6 py-2 rounded-lg transition duration-200 text-sm font-semibold shadow-inner text-white text-center">
+                    Logout
+                </a>
+            </div>
         </div>
     </header>
 
     <main class="container mx-auto px-2 sm:px-4 py-4 md:py-8 flex-grow">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
-            <!-- Left Column: Configuration & Status -->
+            <!-- Left Column: Camera Selection & Status -->
             <div class="lg:col-span-1 space-y-4 md:space-y-6">
-                <!-- Camera Configuration Section -->
-                <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-                    <div class="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200">
-                        <h2 class="text-base md:text-lg font-bold text-gray-800 flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            Configuration
-                        </h2>
-                    </div>
-                    
-                    <div class="p-4 md:p-6 space-y-6">
-                        <!-- Add Default Camera Form -->
-                        <div>
-                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Add: Webcam</h3>
-                            <form action="/add_default_camera" method="POST" class="space-y-3">
-                                <input type="text" name="camera_name" value="Default Camera" required 
-                                       class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                       placeholder="Camera Name">
-                                <div class="flex gap-2">
-                                    <input type="number" name="camera_index" value="0" min="0" max="10" required 
-                                           class="w-20 px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm outline-none">
-                                    <button type="submit" class="flex-grow bg-green-600 hover:bg-green-700 text-white font-bold py-3 md:py-2 px-4 rounded-lg text-sm transition-colors shadow-sm">
-                                        Add Webcam
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                        
-                        <div class="border-t border-gray-100 pt-6">
-                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Add RTSP Stream</h3>
-                            <form action="/save_camera" method="POST" class="space-y-3">
-                                <input type="text" name="camera_name" required 
-                                       class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                       placeholder="Friendly Name">
-                                <input type="text" name="rtsp_url" required 
-                                       class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all"
-                                       placeholder="rtsp://user:pass@ip:port/stream">
-                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 md:py-2 px-4 rounded-lg text-sm transition-colors shadow-sm">
-                                    Add Network Camera
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Configured Cameras -->
                 <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                     <div class="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 flex justify-between items-center">
@@ -159,31 +120,29 @@
                             <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                             My Cameras
                         </h2>
+                        {% if selected_camera %}
                         <button id="toggleGridViewBtn" class="bg-primary hover:bg-red-700 text-white text-[10px] font-bold py-1 px-3 rounded-full transition-colors flex items-center gap-1">
                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                             GRID VIEW
                         </button>
+                        {% endif %}
                     </div>
                     <div class="p-2 md:p-4">
-                        {% if session.cameras %}
+                        {% if cameras %}
                             <form id="selectForm" action="/select_camera" method="POST" class="space-y-2">
                                 <div class="max-h-60 overflow-y-auto space-y-2 pr-1">
-                                    {% for name, url in session.cameras.items() %}
-                                    <div class="group flex items-center justify-between p-4 md:p-3 rounded-xl border {{ 'border-primary bg-red-50' if session.selected_camera == name else 'border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md' }} transition-all cursor-pointer"
+                                    {% for name in cameras.keys() %}
+                                    <div class="group flex items-center justify-between p-4 md:p-3 rounded-xl border {{ 'border-primary bg-red-50' if selected_camera == name else 'border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md' }} transition-all cursor-pointer"
                                          onclick="document.getElementById('cam_{{ loop.index }}').checked = true; this.closest('form').submit();">
                                         <div class="flex items-center">
                                             <input type="radio" name="selected_camera" value="{{ name }}" id="cam_{{ loop.index }}" 
-                                                   {% if session.selected_camera == name %}checked{% endif %}
+                                                   {% if selected_camera == name %}checked{% endif %}
                                                    class="w-5 h-5 md:w-4 md:h-4 text-primary focus:ring-primary border-gray-300">
                                             <div class="ml-3">
-                                                <p class="text-sm font-bold {{ 'text-primary' if session.selected_camera == name else 'text-gray-700' }}">{{ name }}</p>
-                                                <p class="text-xs text-gray-500">{{ 'Local Source' if url.startswith('webcam:') else 'Network Stream' }}</p>
+                                                <p class="text-sm font-bold {{ 'text-primary' if selected_camera == name else 'text-gray-700' }}">{{ name }}</p>
+                                                <p class="text-xs text-gray-500">{% if cameras[name].startswith('webcam:') %}Local Source{% else %}Network Stream{% endif %}</p>
                                             </div>
                                         </div>
-                                        <button type="button" onclick="event.stopPropagation(); removeCamera('{{ name }}')" 
-                                                class="opacity-100 lg:opacity-0 group-hover:opacity-100 p-3 md:p-2 text-gray-400 hover:text-red-600 transition-all">
-                                            <svg class="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                        </button>
                                     </div>
                                     {% endfor %}
                                 </div>
@@ -193,14 +152,15 @@
                                 <div class="bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
                                     <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 </div>
-                                <p class="text-gray-500 text-sm">No cameras yet.</p>
+                                <p class="text-gray-500 text-sm">No cameras configured yet.</p>
+                                <p class="text-gray-400 text-xs mt-2"><a href="/admin" class="text-blue-600 hover:text-blue-700 font-semibold">Add cameras in the admin panel</a></p>
                             </div>
                         {% endif %}
                     </div>
                 </div>
 
                 <!-- Connection Status -->
-                {% if session.selected_camera %}
+                {% if selected_camera %}
                 <div class="bg-white rounded-xl shadow-lg border border-gray-200 p-4 flex items-center justify-between">
                     <div class="flex items-center">
                         <div id="statusDot" class="w-3 h-3 rounded-full bg-gray-300 mr-3 animate-pulse"></div>
@@ -219,8 +179,9 @@
             <!-- Right Column: Video Preview -->
             <div class="lg:col-span-2 space-y-4 md:space-y-6">
                 <!-- Grid View Section (Hidden by default) -->
+                {% if selected_camera %}
                 <div id="multiVideoGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {% for name, url in session.cameras.items() %}
+                    {% for name in cameras.keys() %}
                     <div class="bg-black rounded-xl shadow-lg border border-gray-800 overflow-hidden relative group aspect-video">
                         <div class="absolute top-0 left-0 right-0 p-2 z-10 bg-gradient-to-b from-black/70 to-transparent">
                             <h3 class="text-xs font-bold text-white truncate">{{ name }}</h3>
@@ -229,6 +190,7 @@
                     </div>
                     {% endfor %}
                 </div>
+                {% endif %}
 
                 <!-- Single Video Section (Default) -->
                 <div id="singleVideoSection" class="space-y-4 md:space-y-6">
@@ -239,7 +201,7 @@
                             <div class="max-w-[70%]">
                                 <h2 class="text-base md:text-xl font-bold text-white flex items-center">
                                     <span class="w-2 h-2 md:w-3 md:h-3 bg-red-600 rounded-full mr-2 md:mr-3 animate-pulse"></span>
-                                    <span class="truncate">LIVE: {{ session.selected_camera or 'No Camera' }}</span>
+                                    <span class="truncate">LIVE: {{ selected_camera or 'No Camera' }}</span>
                                 </h2>
                                 <p class="text-gray-300 text-[10px] md:text-xs mt-1" id="streamInfo">640x480 | 30 FPS | AI Ready</p>
                             </div>
@@ -256,7 +218,7 @@
 
                     <!-- The Video Feed -->
                     <div class="aspect-video w-full flex items-center justify-center bg-gray-900 overflow-hidden">
-                        {% if session.selected_camera %}
+                        {% if selected_camera %}
                             <img id="cameraFeed" class="w-full h-full object-contain pointer-events-none" alt="Live Camera Feed">
                         {% else %}
                             <div class="text-center p-8 md:p-12">
@@ -270,7 +232,7 @@
                     </div>
 
                     <!-- Bottom Controls -->
-                    {% if session.selected_camera %}
+                    {% if selected_camera %}
                     <div class="absolute bottom-0 left-0 right-0 p-4 md:p-6 z-10 bg-gradient-to-t from-black/80 to-transparent opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                         <div class="flex flex-col sm:flex-row justify-between items-center gap-4">
                             <div class="flex gap-2 w-full sm:w-auto">
@@ -296,7 +258,7 @@
                 </div>
 
                 <!-- Stats Cards (Visible only when streaming) -->
-                {% if session.selected_camera %}
+                {% if selected_camera %}
                 <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                     <div class="bg-white p-3 md:p-4 rounded-xl shadow-md border border-gray-100">
                         <p class="text-[10px] md:text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">People</p>
@@ -453,37 +415,7 @@
                 testConnectionBtn.addEventListener('click', function() {
                     testConnection();
                 });
-                
-                // Add event listeners for form submissions to refresh the page
-                const cameraForms = document.querySelectorAll('form[action="/save_camera"], form[action="/add_default_camera"]');
-                cameraForms.forEach(form => {
-                    form.addEventListener('submit', function(e) {
-                        // Let the form submit normally, but we'll refresh after
-                        setTimeout(function() {
-                            window.location.reload();
-                        }, 500);
-                    });
-                });
             }
-            
-            // Function to remove camera
-            window.removeCamera = function(cameraName) {
-                if (confirm('Remove this camera?')) {
-                    // Create a form and submit it
-                    const form = document.createElement('form');
-                    form.method = 'POST';
-                    form.action = '/remove_camera';
-                    
-                    const input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = 'camera_name';
-                    input.value = cameraName;
-                    
-                    form.appendChild(input);
-                    document.body.appendChild(form);
-                    form.submit();
-                }
-            };
             
             // Refresh the camera feed periodically to handle disconnections
             if (cameraFeed) {

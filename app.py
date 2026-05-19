@@ -5,29 +5,92 @@ import threading
 import time
 import logging
 import numpy as np
+import requests
+import os
+import json
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-print("DEBUG: Starting Flask app initialization")
+logger.info("Starting Flask app initialization")
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
 
-print("DEBUG: Loading YOLO model")
+logger.info("Loading YOLO model")
 try:
     model = YOLO('yolo11n.pt')  # Load once
-    print("DEBUG: YOLO model loaded successfully")
+    logger.info("YOLO model loaded successfully")
 except Exception as e:
-    print(f"DEBUG: Error loading YOLO model: {e}")
+    logger.error(f"Error loading YOLO model: {e}")
     model = None
 
-print("DEBUG: Flask app created")
+logger.info("Flask app created")
 
 # Global variables for camera management
 camera_lock = threading.Lock()
 active_cameras = {}
+
+# Camera file path
+CAMERAS_FILE = os.path.join('static', 'cams.txt')
+
+def ensure_cameras_file_exists():
+    """Ensure the cameras file exists"""
+    os.makedirs('static', exist_ok=True)
+    if not os.path.exists(CAMERAS_FILE):
+        # Create default camera
+        with open(CAMERAS_FILE, 'w') as f:
+            f.write('Default Camera,webcam:0\n')
+        logger.info(f"Created default cameras file: {CAMERAS_FILE}")
+
+def load_cameras():
+    """Load cameras from cams.txt file"""
+    ensure_cameras_file_exists()
+    cameras = {}
+    try:
+        with open(CAMERAS_FILE, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    parts = line.split(',', 1)
+                    if len(parts) == 2:
+                        name, url = parts
+                        cameras[name.strip()] = url.strip()
+        logger.info(f"Loaded {len(cameras)} cameras from file")
+    except Exception as e:
+        logger.error(f"Error loading cameras: {e}")
+    return cameras
+
+def save_cameras(cameras):
+    """Save cameras to cams.txt file"""
+    try:
+        ensure_cameras_file_exists()
+        with open(CAMERAS_FILE, 'w') as f:
+            for name, url in cameras.items():
+                f.write(f'{name},{url}\n')
+        logger.info(f"Saved {len(cameras)} cameras to file")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving cameras: {e}")
+        return False
+
+def add_camera(name, url):
+    """Add a new camera to the file"""
+    cameras = load_cameras()
+    cameras[name] = url
+    return save_cameras(cameras)
+
+def remove_camera_file(name):
+    """Remove a camera from the file"""
+    cameras = load_cameras()
+    if name in cameras:
+        del cameras[name]
+        return save_cameras(cameras)
+    return False
+
+# Initialize cameras on startup
+ensure_cameras_file_exists()
 
 # 🔐 Login Page
 @app.route('/')
@@ -43,21 +106,27 @@ def login():
         return redirect(url_for('dashboard'))
     return render_template('login.html', error='Invalid credentials')
 
-# Dashboard with camera input
+# Dashboard with live streaming
 @app.route('/dashboard')
 def dashboard():
     if not session.get('logged_in'):
         return redirect(url_for('index'))
     
-    # Initialize with default camera if no cameras exist or session is corrupted
-    if 'cameras' not in session or not isinstance(session['cameras'], dict):
-        session['cameras'] = {'Default Camera': 'webcam:0'}
-        session.modified = True
-    elif not session['cameras']:
-        session['cameras'] = {'Default Camera': 'webcam:0'}
-        session.modified = True
+    cameras = load_cameras()
+    selected_camera = session.get('selected_camera')
+    if selected_camera not in cameras:
+        session.pop('selected_camera', None)
+        selected_camera = None
+    return render_template('index.html', cameras=cameras, selected_camera=selected_camera)
+
+# Admin Panel for camera management
+@app.route('/admin')
+def admin():
+    if not session.get('logged_in'):
+        return redirect(url_for('index'))
     
-    return render_template('index.html')
+    cameras = load_cameras()
+    return render_template('admin.html', cameras=cameras)
 
 # Error handler for 500 errors
 @app.errorhandler(500)
@@ -69,60 +138,51 @@ def internal_error(error):
 def not_found_error(error):
     return "Page Not Found", 404
 
-# Save camera configuration
-@app.route('/save_camera', methods=['POST'])
-def save_camera():
+# Save camera configuration (API endpoint for admin panel)
+@app.route('/api/camera/add', methods=['POST'])
+def api_add_camera():
     if not session.get('logged_in'):
-        return redirect(url_for('index'))
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     
-    camera_name = request.form.get('camera_name')
-    rtsp_url = request.form.get('rtsp_url')
+    data = request.get_json()
+    camera_name = data.get('camera_name', '').strip()
+    camera_url = data.get('camera_url', '').strip()
     
-    # Store in session (you might want to use a database in production)
-    if 'cameras' not in session:
-        session['cameras'] = {}
+    if not camera_name or not camera_url:
+        return jsonify({'success': False, 'error': 'Camera name and URL are required'}), 400
     
-    session['cameras'][camera_name] = rtsp_url
-    session.modified = True
+    # Check if camera already exists
+    cameras = load_cameras()
+    if camera_name in cameras:
+        return jsonify({'success': False, 'error': 'Camera name already exists'}), 400
     
-    return redirect(url_for('dashboard'))
-
-# Add default camera
-@app.route('/add_default_camera', methods=['POST'])
-def add_default_camera():
-    if not session.get('logged_in'):
-        return redirect(url_for('index'))
-    
-    camera_name = request.form.get('camera_name', 'Default Camera')
-    camera_index = request.form.get('camera_index', '0')
-    
-    if 'cameras' not in session:
-        session['cameras'] = {}
-    
-    # Store as a special format to distinguish from RTSP
-    session['cameras'][camera_name] = f"webcam:{camera_index}"
-    session.modified = True
-    
-    return redirect(url_for('dashboard'))
+    if add_camera(camera_name, camera_url):
+        logger.info(f"Camera added: {camera_name}")
+        return jsonify({'success': True, 'message': 'Camera added successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Failed to add camera'}), 500
 
 # Remove camera
-@app.route('/remove_camera', methods=['POST'])
-def remove_camera():
+@app.route('/api/camera/remove', methods=['POST'])
+def api_remove_camera():
     if not session.get('logged_in'):
-        return redirect(url_for('index'))
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     
-    camera_name = request.form.get('camera_name')
+    data = request.get_json()
+    camera_name = data.get('camera_name', '').strip()
     
-    if 'cameras' in session and camera_name in session['cameras']:
-        del session['cameras'][camera_name]
-        
+    if not camera_name:
+        return jsonify({'success': False, 'error': 'Camera name is required'}), 400
+    
+    if remove_camera_file(camera_name):
         # If the removed camera was selected, clear selection
         if session.get('selected_camera') == camera_name:
             session['selected_camera'] = None
-        
-        session.modified = True
-    
-    return redirect(url_for('dashboard'))
+            session.modified = True
+        logger.info(f"Camera removed: {camera_name}")
+        return jsonify({'success': True, 'message': 'Camera removed successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Camera not found'}), 404
 
 # Get camera status
 @app.route('/camera_status')
@@ -130,7 +190,10 @@ def camera_status():
     if not session.get('logged_in'):
         return jsonify({'status': 'error', 'message': 'Not authenticated'})
     
-    camera_url = session.get('cameras', {}).get(session.get('selected_camera', ''), '')
+    cameras = load_cameras()
+    selected = session.get('selected_camera')
+    camera_url = cameras.get(selected, '')
+    
     if not camera_url:
         return jsonify({'status': 'error', 'message': 'No camera selected'})
     
@@ -161,11 +224,7 @@ def select_camera():
     selected_camera = request.form.get('selected_camera')
     logger.info(f"Camera selection request: {selected_camera}")
     
-    cameras = session.get('cameras')
-    if not isinstance(cameras, dict):
-        logger.error(f"Invalid cameras in session: {type(cameras)}")
-        session['cameras'] = {'Default Camera': 'webcam:0'}
-        cameras = session['cameras']
+    cameras = load_cameras()
     
     if selected_camera and selected_camera in cameras:
         session['selected_camera'] = selected_camera
@@ -181,7 +240,7 @@ def select_camera():
 def test():
     return "Test route works!"
 
-print("DEBUG: Test route registered")
+logger.info("Test route registered")
 
 # 🎥 Stream Routes
 @app.route('/golive')
@@ -189,7 +248,8 @@ def video_feed():
     if not session.get('logged_in'):
         return redirect(url_for('index'))
     
-    camera_url = session.get('cameras', {}).get(session.get('selected_camera', ''), '')
+    cameras = load_cameras()
+    camera_url = cameras.get(session.get('selected_camera', ''), '')
     if not camera_url:
         return "No camera selected or configured", 400
         
@@ -201,7 +261,8 @@ def video_feedai():
     if not session.get('logged_in'):
         return redirect(url_for('index'))
     
-    camera_url = session.get('cameras', {}).get(session.get('selected_camera', ''), '')
+    cameras = load_cameras()
+    camera_url = cameras.get(session.get('selected_camera', ''), '')
     if not camera_url:
         return "No camera selected or configured", 400
         
@@ -214,12 +275,11 @@ def video_feed_named(camera_name):
     if not session.get('logged_in'):
         return redirect(url_for('index'))
     
-    cameras = session.get('cameras', {})
+    cameras = load_cameras()
     camera_url = cameras.get(camera_name)
-    
     if not camera_url:
         return f"Camera '{camera_name}' not found", 404
-        
+    
     return Response(stream_frames(camera_url, apply_ai=False),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -228,12 +288,11 @@ def video_feed_ai_named(camera_name):
     if not session.get('logged_in'):
         return redirect(url_for('index'))
     
-    cameras = session.get('cameras', {})
+    cameras = load_cameras()
     camera_url = cameras.get(camera_name)
-    
     if not camera_url:
         return f"Camera '{camera_name}' not found", 404
-        
+    
     return Response(stream_frames(camera_url, apply_ai=True),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
@@ -297,109 +356,63 @@ def get_camera(camera_url):
             cap = cv2.VideoCapture(camera_index)
         else:
             cap = cv2.VideoCapture(camera_url)
-        
+        print("GOOOO")
         # Set some properties to help with streams
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        cap.set(cv2.CAP_PROP_FPS, 30)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        
+        # cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        # cap.set(cv2.CAP_PROP_FPS, 30)
+        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        print("GOOOO2") 
         # Try to open the stream with a timeout
-        start_time = time.time()
-        while not cap.isOpened() and time.time() - start_time < 10:  # 10 second timeout
-            time.sleep(0.1)
+        # start_time = time.time()
+        # while not cap.isOpened() and time.time() - start_time < 10:  # 10 second timeout
+        #     time.sleep(0.1)
             
-        if cap.isOpened():
-            active_cameras[camera_url] = cap
-            return cap
-        else:
-            logger.error(f"Failed to open camera stream: {camera_url}")
-            return None
+        # if cap.isOpened():
+        #     active_cameras[camera_url] = cap
+        #     return cap
+        # else:
+        #     logger.error(f"Failed to open camera stream: {camera_url}")
+        #     return None
+        return cap
 
-# 🔁 Improved Streaming Logic with Error Handling
+# 🔁 Streaming Logic with Error Handling
 def stream_frames(camera_url, apply_ai=False):
+    """Stream video frames from a camera URL with optional AI detection"""
     reconnect_attempts = 0
     max_reconnect_attempts = 5
     
     while True:
         try:
             cap = get_camera(camera_url)
-            if cap is None:
-                # Generate a placeholder image when camera is not available
-                placeholder = generate_placeholder_image("Camera not available")
-                _, buffer = cv2.imencode('.jpg', placeholder)
-                frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-                time.sleep(2)  # Wait before trying again
+            if not cap:
+                logger.error(f"Failed to get camera: {camera_url}")
+                # time.sleep(2)
                 continue
-                
-            ret, frame = cap.read()
             
-            if not ret:
-                reconnect_attempts += 1
-                logger.warning(f"Failed to read frame, attempt {reconnect_attempts}/{max_reconnect_attempts}")
-                
-                if reconnect_attempts >= max_reconnect_attempts:
-                    # Generate a placeholder image
-                    placeholder = generate_placeholder_image("Reconnecting to camera...")
-                    _, buffer = cv2.imencode('.jpg', placeholder)
-                    frame_bytes = buffer.tobytes()
-                    yield (b'--frame\r\n'
-                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-                    
-                    # Reset the camera connection
-                    with camera_lock:
-                        if camera_url in active_cameras:
-                            try:
-                                active_cameras[camera_url].release()
-                            except:
-                                pass
-                            active_cameras.pop(camera_url, None)
-                    
-                    reconnect_attempts = 0
-                    time.sleep(2)  # Wait before reconnecting
-                    continue
-                else:
-                    # Continue with the same connection
-                    time.sleep(0.1)
-                    continue
-            else:
-                # Reset reconnect attempts on successful frame read
-                reconnect_attempts = 0
-                
+            ret, frame = cap.read()
+            print("Gooooo3")
+            
+            
             # Resize for better performance (only if not applying AI)
             if apply_ai:
                 frame = doAI(frame)
             else:
                 frame = cv2.resize(frame, (640, 480))
-                
+            
             _, buffer = cv2.imencode('.jpg', frame)
             frame_bytes = buffer.tobytes()
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
                     
         except Exception as e:
-            logger.error(f"Error in stream_frames: {e}")
-            # Generate a placeholder image on error
-            placeholder = generate_placeholder_image(f"Error: {str(e)}")
-            _, buffer = cv2.imencode('.jpg', placeholder)
-            frame_bytes = buffer.tobytes()
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-            time.sleep(2)  # Wait before trying again
-
-# Generate placeholder image when camera is not available
-def generate_placeholder_image(message):
-    img = np.zeros((480, 640, 3), dtype=np.uint8)
-    cv2.putText(img, message, (50, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-    cv2.putText(img, "Please check camera connection", (50, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    return img
+            logger.error(f"Error in stream_frames for {camera_url}: {e}")
+            
 
 # Logout
 @app.route('/logout')
 def logout():
-    # Release all camera resources on logout
+    """Clear session and release all camera resources"""
     with camera_lock:
         for camera_url, cap in active_cameras.items():
             try:
@@ -411,8 +424,6 @@ def logout():
     session.clear()
     return redirect(url_for('index'))
 
-# 🚀 Launch
+# Run the app
 if __name__ == '__main__':
-    print("DEBUG: About to start Flask app")
-    print(f"DEBUG: Registered routes: {[rule.rule for rule in app.url_map.iter_rules()]}")
-    app.run(host='0.0.0.0', port=8000, threaded=True, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=8000)
