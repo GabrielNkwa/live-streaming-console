@@ -1,13 +1,17 @@
-from flask import Flask, render_template, request, Response, session, redirect, url_for, jsonify
+from flask import Flask, render_template, request, Response, session, redirect, url_for, jsonify, abort, send_from_directory
+from werkzeug.middleware.proxy_fix import ProxyFix
 import cv2
 from ultralytics import YOLO
 import threading
 import time
 import logging
 import numpy as np
-import requests
 import os
 import json
+import secrets
+import re
+from datetime import timedelta
+from urllib.parse import urlparse
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -15,8 +19,27 @@ logger = logging.getLogger(__name__)
 
 logger.info("Starting Flask app initialization")
 
-app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Change this to a secure secret key
+app = Flask(__name__, static_url_path=None)
+
+secret_key = os.environ.get('FLASK_SECRET_KEY')
+if not secret_key:
+    secret_key = secrets.token_urlsafe(32)
+    logger.warning("Using fallback ephemeral secret key. Set FLASK_SECRET_KEY in production.")
+app.secret_key = secret_key
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    SESSION_COOKIE_SECURE=os.environ.get('FLASK_ENV', 'production') != 'development',
+    PERMANENT_SESSION_LIFETIME=timedelta(minutes=20),
+    PREFERRED_URL_SCHEME='https',
+)
+
+if os.environ.get('USE_PROXY_FIX') == '1':
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+ASSETS_FOLDER = os.path.join(app.root_path, 'static', 'assets')
+os.makedirs(ASSETS_FOLDER, exist_ok=True)
 
 logger.info("Loading YOLO model")
 try:
@@ -31,6 +54,7 @@ logger.info("Flask app created")
 # Global variables for camera management
 camera_lock = threading.Lock()
 active_cameras = {}
+MAX_ACTIVE_CAMERAS = 10  # Limit total active camera connections
 
 # Camera file path
 CAMERAS_FILE = os.path.join('static', 'cams.txt')
@@ -43,6 +67,81 @@ def ensure_cameras_file_exists():
         with open(CAMERAS_FILE, 'w') as f:
             f.write('Default Camera,webcam:0\n')
         logger.info(f"Created default cameras file: {CAMERAS_FILE}")
+
+
+def generate_csrf_token():
+    token = session.get('csrf_token')
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session['csrf_token'] = token
+    return token
+
+
+def is_safe_camera_name(camera_name):
+    return bool(re.fullmatch(r"[A-Za-z0-9 _\-]{1,64}", camera_name))
+
+
+def is_safe_camera_url(camera_url):
+    if not camera_url or len(camera_url) > 200:
+        return False
+    if camera_url.startswith('webcam:'):
+        try:
+            index = int(camera_url.split(':', 1)[1])
+            return 0 <= index <= 4
+        except ValueError:
+            return False
+
+    parsed = urlparse(camera_url)
+    if parsed.scheme not in ('rtsp', 'http', 'https'):
+        return False
+    if not parsed.hostname:
+        return False
+
+    hostname = parsed.hostname.lower()
+    if hostname in ('127.0.0.1', 'localhost', '0.0.0.0'):
+        return False
+    if hostname.startswith('169.254.'):
+        return False
+    return True
+
+
+def is_admin():
+    return session.get('logged_in') and session.get('role') == 'admin'
+
+
+def is_authenticated():
+    return session.get('logged_in')
+
+
+def validate_csrf_token():
+    if request.method not in ('POST', 'PUT', 'PATCH', 'DELETE'):
+        return True
+    session_token = session.get('csrf_token')
+    if not session_token:
+        return False
+
+    token = request.form.get('csrf_token') or request.headers.get('X-CSRF-Token')
+    if request.is_json:
+        payload = request.get_json(silent=True)
+        if isinstance(payload, dict):
+            token = token or payload.get('csrf_token')
+
+    return bool(token and secrets.compare_digest(str(token), str(session_token)))
+
+
+@app.before_request
+def enforce_security_headers_and_csrf():
+    if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and not validate_csrf_token():
+        logger.warning('Potential CSRF attack blocked from %s', request.remote_addr)
+        if request.is_json:
+            return jsonify({'success': False, 'error': 'Invalid CSRF token'}), 403
+        return 'Invalid CSRF token', 403
+
+
+@app.context_processor
+def inject_csrf_token():
+    return {'csrf_token': generate_csrf_token()}
+
 
 def load_cameras():
     """Load cameras from cams.txt file"""
@@ -97,19 +196,28 @@ ensure_cameras_file_exists()
 def index():
     return render_template('login.html')
 
+ADMIN_USERNAME = os.environ.get('APP_ADMIN_USER', 'admin')
+ADMIN_PASSWORD = os.environ.get('APP_ADMIN_PASS', 'admin')
+if ADMIN_USERNAME == 'admin' and ADMIN_PASSWORD == 'admin':
+    logger.warning('Using default admin credentials. Set APP_ADMIN_USER and APP_ADMIN_PASS in production.')
+
 @app.route('/login', methods=['POST'])
 def login():
-    username = request.form.get('username')
-    password = request.form.get('password')
-    if username == 'admin' and password == 'admin':
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '').strip()
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        session.clear()
         session['logged_in'] = True
+        session['role'] = 'admin'
+        session.permanent = True
+        generate_csrf_token()
         return redirect(url_for('dashboard'))
     return render_template('login.html', error='Invalid credentials')
 
 # Dashboard with live streaming
 @app.route('/dashboard')
 def dashboard():
-    if not session.get('logged_in'):
+    if not is_authenticated():
         return redirect(url_for('index'))
     
     cameras = load_cameras()
@@ -122,7 +230,7 @@ def dashboard():
 # Admin Panel for camera management
 @app.route('/admin')
 def admin():
-    if not session.get('logged_in'):
+    if not is_admin():
         return redirect(url_for('index'))
     
     cameras = load_cameras()
@@ -138,20 +246,50 @@ def internal_error(error):
 def not_found_error(error):
     return "Page Not Found", 404
 
+@app.route('/assets/<path:filename>')
+def assets(filename):
+    if '..' in filename or filename.startswith('/'):
+        abort(404)
+    return send_from_directory(ASSETS_FOLDER, filename)
+
+@app.after_request
+def set_security_headers(response):
+    response.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    response.headers.setdefault('X-Frame-Options', 'DENY')
+    response.headers.setdefault('Referrer-Policy', 'same-origin')
+    response.headers.setdefault('Permissions-Policy', 'camera=(), microphone=(), geolocation=()')
+    response.headers.setdefault('X-Download-Options', 'noopen')
+    response.headers.setdefault('X-XSS-Protection', '1; mode=block')
+    response.headers.setdefault(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' 'unsafe-inline';"
+        " style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self';"
+    )
+    response.headers.setdefault('Cache-Control', 'no-store')
+    response.headers.setdefault('Pragma', 'no-cache')
+    response.headers.setdefault('Expires', '0')
+    # Add HSTS header (Strict-Transport-Security)
+    if request.is_secure or os.environ.get('FLASK_ENV', 'production') == 'production':
+        response.headers.setdefault('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
+    return response
+
 # Save camera configuration (API endpoint for admin panel)
 @app.route('/api/camera/add', methods=['POST'])
 def api_add_camera():
-    if not session.get('logged_in'):
+    if not is_admin():
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     camera_name = data.get('camera_name', '').strip()
     camera_url = data.get('camera_url', '').strip()
     
     if not camera_name or not camera_url:
         return jsonify({'success': False, 'error': 'Camera name and URL are required'}), 400
+    if not is_safe_camera_name(camera_name):
+        return jsonify({'success': False, 'error': 'Invalid camera name'}), 400
+    if not is_safe_camera_url(camera_url):
+        return jsonify({'success': False, 'error': 'Invalid or unsupported camera URL'}), 400
     
-    # Check if camera already exists
     cameras = load_cameras()
     if camera_name in cameras:
         return jsonify({'success': False, 'error': 'Camera name already exists'}), 400
@@ -165,20 +303,35 @@ def api_add_camera():
 # Remove camera
 @app.route('/api/camera/remove', methods=['POST'])
 def api_remove_camera():
-    if not session.get('logged_in'):
+    if not is_admin():
         return jsonify({'success': False, 'error': 'Not authenticated'}), 401
     
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     camera_name = data.get('camera_name', '').strip()
     
-    if not camera_name:
-        return jsonify({'success': False, 'error': 'Camera name is required'}), 400
+    if not camera_name or not is_safe_camera_name(camera_name):
+        return jsonify({'success': False, 'error': 'Camera name is required and must be valid'}), 400
+    
+    # First, get the camera URL from the cameras file
+    cameras = load_cameras()
+    camera_url = cameras.get(camera_name)
     
     if remove_camera_file(camera_name):
-        # If the removed camera was selected, clear selection
         if session.get('selected_camera') == camera_name:
             session['selected_camera'] = None
             session.modified = True
+        
+        # Release camera from active_cameras if it's open
+        if camera_url:
+            with camera_lock:
+                if camera_url in active_cameras:
+                    try:
+                        cap = active_cameras.pop(camera_url)
+                        cap.release()
+                        logger.info(f"Released active camera: {camera_url}")
+                    except Exception as e:
+                        logger.error(f"Error releasing camera {camera_url}: {e}")
+        
         logger.info(f"Camera removed: {camera_name}")
         return jsonify({'success': True, 'message': 'Camera removed successfully'})
     else:
@@ -187,19 +340,18 @@ def api_remove_camera():
 # Get camera status
 @app.route('/camera_status')
 def camera_status():
-    if not session.get('logged_in'):
+    if not is_authenticated():
         return jsonify({'status': 'error', 'message': 'Not authenticated'})
     
     cameras = load_cameras()
     selected = session.get('selected_camera')
     camera_url = cameras.get(selected, '')
     
-    if not camera_url:
-        return jsonify({'status': 'error', 'message': 'No camera selected'})
+    if not camera_url or not is_safe_camera_url(camera_url):
+        return jsonify({'status': 'error', 'message': 'No valid camera selected'})
     
-    # Handle webcam URLs
     if camera_url.startswith('webcam:'):
-        camera_index = int(camera_url.split(':')[1])
+        camera_index = int(camera_url.split(':', 1)[1])
         cap = cv2.VideoCapture(camera_index)
     else:
         cap = cv2.VideoCapture(camera_url)
@@ -217,11 +369,11 @@ def camera_status():
 # Select camera for streaming
 @app.route('/select_camera', methods=['POST'])
 def select_camera():
-    if not session.get('logged_in'):
+    if not is_authenticated():
         logger.warning("Unauthorized access attempt to select_camera")
         return redirect(url_for('index'))
     
-    selected_camera = request.form.get('selected_camera')
+    selected_camera = request.form.get('selected_camera', '').strip()
     logger.info(f"Camera selection request: {selected_camera}")
     
     cameras = load_cameras()
@@ -245,12 +397,12 @@ logger.info("Test route registered")
 # 🎥 Stream Routes
 @app.route('/golive')
 def video_feed():
-    if not session.get('logged_in'):
+    if not is_authenticated():
         return redirect(url_for('index'))
     
     cameras = load_cameras()
     camera_url = cameras.get(session.get('selected_camera', ''), '')
-    if not camera_url:
+    if not camera_url or not is_safe_camera_url(camera_url):
         return "No camera selected or configured", 400
         
     return Response(stream_frames(camera_url, apply_ai=False),
@@ -258,12 +410,12 @@ def video_feed():
 
 @app.route('/goai')
 def video_feedai():
-    if not session.get('logged_in'):
+    if not is_authenticated():
         return redirect(url_for('index'))
     
     cameras = load_cameras()
     camera_url = cameras.get(session.get('selected_camera', ''), '')
-    if not camera_url:
+    if not camera_url or not is_safe_camera_url(camera_url):
         return "No camera selected or configured", 400
         
     return Response(stream_frames(camera_url, apply_ai=True),
@@ -272,12 +424,12 @@ def video_feedai():
 # New parameterized routes for multi-camera support
 @app.route('/video_feed/<camera_name>')
 def video_feed_named(camera_name):
-    if not session.get('logged_in'):
+    if not is_authenticated():
         return redirect(url_for('index'))
     
     cameras = load_cameras()
     camera_url = cameras.get(camera_name)
-    if not camera_url:
+    if not camera_url or not is_safe_camera_url(camera_url):
         return f"Camera '{camera_name}' not found", 404
     
     return Response(stream_frames(camera_url, apply_ai=False),
@@ -285,12 +437,12 @@ def video_feed_named(camera_name):
 
 @app.route('/video_feed_ai/<camera_name>')
 def video_feed_ai_named(camera_name):
-    if not session.get('logged_in'):
+    if not is_authenticated():
         return redirect(url_for('index'))
     
     cameras = load_cameras()
     camera_url = cameras.get(camera_name)
-    if not camera_url:
+    if not camera_url or not is_safe_camera_url(camera_url):
         return f"Camera '{camera_name}' not found", 404
     
     return Response(stream_frames(camera_url, apply_ai=True),
@@ -298,8 +450,14 @@ def video_feed_ai_named(camera_name):
 
 # 🧠 AI Detection
 def doAI(img):
+    if img is None:
+        logger.warning("AI processing received empty frame")
+        return None
+    if model is None:
+        logger.warning("YOLO model unavailable, skipping AI inference")
+        return cv2.resize(img, (640, 480))
+
     try:
-        # Resize for YOLO processing (model expects certain input size)
         img_resized = cv2.resize(img, (640, 480))
         results = model(img_resized, verbose=False)[0]
         names = results.names
@@ -324,100 +482,120 @@ def doAI(img):
                     cv2.FONT_HERSHEY_COMPLEX, 0.6, (0, 0, 0), 2)
         
         return img_resized
-        
     except Exception as e:
         logger.error(f"Error in AI processing: {e}")
-        # If AI fails, return the original image resized
         return cv2.resize(img, (640, 480))
 
 # Get camera instance with reconnection logic
 def get_camera(camera_url):
+    if not is_safe_camera_url(camera_url):
+        logger.warning("Rejected unsafe camera URL: %s", camera_url)
+        return None
+
     with camera_lock:
         if camera_url in active_cameras:
             cap = active_cameras[camera_url]
-            # Check if the capture is still working
             if cap.isOpened():
                 return cap
-            else:
-                # Clean up the old capture
-                try:
-                    cap.release()
-                except:
-                    pass
-                # Remove from active cameras
-                active_cameras.pop(camera_url, None)
-        
-        # Create a new capture
+            try:
+                cap.release()
+            except Exception:
+                pass
+            active_cameras.pop(camera_url, None)
+
+        # Check max active cameras limit
+        if len(active_cameras) >= MAX_ACTIVE_CAMERAS:
+            logger.warning(f"Max active cameras limit ({MAX_ACTIVE_CAMERAS}) reached")
+            return None
+
         logger.info(f"Creating new capture for {camera_url}")
-        
-        # Handle webcam URLs
         if camera_url.startswith('webcam:'):
-            camera_index = int(camera_url.split(':')[1])
-            cap = cv2.VideoCapture(camera_index)
+            camera_index = int(camera_url.split(':', 1)[1])
+            # Try DSHOW first (Windows), fall back to default
+            cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)
+            if not cap.isOpened():
+                cap = cv2.VideoCapture(camera_index)
         else:
-            cap = cv2.VideoCapture(camera_url)
-        print("GOOOO")
-        # Set some properties to help with streams
-        # cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        # cap.set(cv2.CAP_PROP_FPS, 30)
-        # cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-        # cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-        print("GOOOO2") 
-        # Try to open the stream with a timeout
-        # start_time = time.time()
-        # while not cap.isOpened() and time.time() - start_time < 10:  # 10 second timeout
-        #     time.sleep(0.1)
-            
-        # if cap.isOpened():
-        #     active_cameras[camera_url] = cap
-        #     return cap
-        # else:
-        #     logger.error(f"Failed to open camera stream: {camera_url}")
-        #     return None
-        return cap
+            cap = cv2.VideoCapture(camera_url, cv2.CAP_FFMPEG)
+            # Optimize for RTSP streams - reduce latency
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)
+            cap.set(cv2.CAP_PROP_FPS, 30)
+
+        if cap.isOpened():
+            # Set reasonable resolution for performance
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            active_cameras[camera_url] = cap
+            return cap
+
+        try:
+            cap.release()
+        except Exception:
+            pass
+        logger.error(f"Failed to open camera stream: {camera_url}")
+        return None
 
 # 🔁 Streaming Logic with Error Handling
 def stream_frames(camera_url, apply_ai=False):
     """Stream video frames from a camera URL with optional AI detection"""
-    reconnect_attempts = 0
-    max_reconnect_attempts = 5
-    
-    while True:
-        try:
-            cap = get_camera(camera_url)
-            if not cap:
-                logger.error(f"Failed to get camera: {camera_url}")
-                # time.sleep(2)
-                continue
+    cap = None
+    try:
+        cap = get_camera(camera_url)
+        if not cap:
+            logger.error(f"Failed to get camera: {camera_url}")
+            time.sleep(0.5)
+            return
+        
+        while True:
+            # Read multiple frames quickly to clear buffer
+            for _ in range(2):
+                cap.read()
             
             ret, frame = cap.read()
-            print("Gooooo3")
-            
-            
-            # Resize for better performance (only if not applying AI)
+            if not ret or frame is None:
+                time.sleep(0.001)
+                continue
+
             if apply_ai:
                 frame = doAI(frame)
             else:
-                frame = cv2.resize(frame, (640, 480))
-            
-            _, buffer = cv2.imencode('.jpg', frame)
+                # Resize for speed
+                frame = cv2.resize(frame, (480, 360))
+
+            if frame is None:
+                time.sleep(0.001)
+                continue
+
+            # Aggressive JPEG compression for maximum speed
+            encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 50]
+            _, buffer = cv2.imencode('.jpg', frame, encode_param)
             frame_bytes = buffer.tobytes()
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-                    
-        except Exception as e:
-            logger.error(f"Error in stream_frames for {camera_url}: {e}")
+    except Exception as e:
+        logger.error(f"Error in stream_frames for {camera_url}: {e}")
+        if cap:
+            try:
+                with camera_lock:
+                    if camera_url in active_cameras:
+                        active_cameras.pop(camera_url, None)
+                cap.release()
+            except Exception:
+                pass
             
 
 # Logout
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     """Clear session and release all camera resources"""
+    if not is_authenticated() or not validate_csrf_token():
+        return redirect(url_for('index'))
+
     with camera_lock:
         for camera_url, cap in active_cameras.items():
             try:
                 cap.release()
-            except:
+            except Exception:
                 pass
         active_cameras.clear()
     
@@ -426,4 +604,8 @@ def logout():
 
 # Run the app
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8000)
+    app.run(
+        debug=False,
+        host=os.environ.get('FLASK_RUN_HOST', '0.0.0.0'),
+        port=int(os.environ.get('FLASK_RUN_PORT', 8000))
+    )

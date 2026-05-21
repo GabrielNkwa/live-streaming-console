@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Camera Management - DLC Surveillance System</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/assets/tailwind.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -17,6 +17,7 @@
             }
         }
     </script>
+    <script>const CSRF_TOKEN = "{{ csrf_token }}";</script>
 </head>
 <body class="bg-gray-100 flex flex-col min-h-screen">
     <!-- Header -->
@@ -30,9 +31,12 @@
                 <a href="/dashboard" class="flex-grow sm:flex-initial bg-white hover:bg-gray-100 text-primary px-6 py-2 rounded-lg transition duration-200 text-sm font-semibold shadow-inner text-center">
                     Dashboard
                 </a>
-                <a href="/logout" class="flex-grow sm:flex-initial bg-red-800 hover:bg-red-700 px-6 py-2 rounded-lg transition duration-200 text-sm font-semibold shadow-inner text-white text-center">
-                    Logout
-                </a>
+                <form action="/logout" method="POST" class="flex-grow sm:flex-initial">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="w-full bg-red-800 hover:bg-red-700 px-6 py-2 rounded-lg transition duration-200 text-sm font-semibold shadow-inner text-white">
+                        Logout
+                    </button>
+                </form>
             </div>
         </div>
     </header>
@@ -198,6 +202,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRF-Token': CSRF_TOKEN,
                     },
                     body: JSON.stringify({
                         camera_name: name,
@@ -235,6 +240,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRF-Token': CSRF_TOKEN,
                     },
                     body: JSON.stringify({
                         camera_name: name,
@@ -267,6 +273,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'X-CSRF-Token': CSRF_TOKEN,
                     },
                     body: JSON.stringify({
                         camera_name: name

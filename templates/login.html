@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - DLC Streaming Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/assets/tailwind.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -28,6 +28,7 @@
         {% endif %}
         
         <form action="/login" method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="mb-4">
                 <label class="block text-gray-700 text-sm font-bold mb-2" for="username">
                     Username
