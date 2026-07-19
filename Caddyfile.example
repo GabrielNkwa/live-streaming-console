@@ -1,0 +1,10 @@
+# Only needed if you're exposing this app on a real public domain and want
+# automatic HTTPS. Not needed if you're accessing it over Tailscale or a
+# private LAN only - see DEPLOYMENT.md.
+#
+# Copy to Caddyfile, replace the domain, then:
+#   docker compose --profile proxy up -d
+
+cameras.example.com {
+    reverse_proxy dlc:8000
+}

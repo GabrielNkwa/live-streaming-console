@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Camera Management - DLC Surveillance System</title>
+    <title>Admin Dashboard - DLC Surveillance System</title>
     <script src="/assets/tailwind.min.js"></script>
     <script>
         tailwind.config = {
@@ -25,11 +25,11 @@
         <div class="container mx-auto px-4 py-3 md:py-4 flex flex-col sm:flex-row justify-between items-center gap-3">
             <div class="flex items-center gap-3">
                 <svg class="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                <h1 class="text-lg md:text-2xl font-bold text-center sm:text-left">Camera Management</h1>
+                <h1 class="text-lg md:text-2xl font-bold text-center sm:text-left">Admin Dashboard</h1>
             </div>
             <div class="flex gap-3 w-full sm:w-auto">
                 <a href="/dashboard" class="flex-grow sm:flex-initial bg-white hover:bg-gray-100 text-primary px-6 py-2 rounded-lg transition duration-200 text-sm font-semibold shadow-inner text-center">
-                    Dashboard
+                    My Dashboard
                 </a>
                 <form action="/logout" method="POST" class="flex-grow sm:flex-initial">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -43,98 +43,135 @@
 
     <main class="container mx-auto px-2 sm:px-4 py-4 md:py-8 flex-grow">
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-8">
-            <!-- Left Column: Add Camera Form -->
+            <!-- Left Column: Add User -->
             <div class="lg:col-span-1 space-y-6">
-                <!-- Add Camera Section -->
                 <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                     <div class="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200">
                         <h2 class="text-base md:text-lg font-bold text-gray-800 flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-                            Add New Camera
+                            <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path></svg>
+                            Add New User
                         </h2>
                     </div>
-                    
-                    <div class="p-4 md:p-6 space-y-6">
-                        <!-- Webcam Quick Add -->
-                        <div>
-                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Quick Add: Webcam</h3>
-                            <form class="space-y-3" onsubmit="addWebcam(event)">
-                                <input type="text" id="webcamName" placeholder="Camera Name" required 
-                                       class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
-                                <div class="flex gap-2">
-                                    <input type="number" id="webcamIndex" value="0" min="0" max="10" required 
-                                           class="w-20 px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm outline-none">
-                                    <button type="submit" class="flex-grow bg-green-600 hover:bg-green-700 text-white font-bold py-3 md:py-2 px-4 rounded-lg text-sm transition-colors shadow-sm">
-                                        Add Webcam
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                        
-                        <div class="border-t border-gray-100 pt-6">
-                            <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Add Network Camera (RTSP)</h3>
-                            <form class="space-y-3" onsubmit="addRTSP(event)">
-                                <input type="text" id="rtspName" placeholder="Friendly Name" required 
-                                       class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
-                                <input type="text" id="rtspUrl" placeholder="rtsp://user:pass@ip:port/stream" required 
-                                       class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
-                                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 md:py-2 px-4 rounded-lg text-sm transition-colors shadow-sm">
-                                    Add Network Camera
-                                </button>
-                            </form>
-                        </div>
 
-                        <!-- Status Messages -->
+                    <div class="p-4 md:p-6 space-y-6">
+                        <form class="space-y-3" onsubmit="addUser(event)">
+                            <input type="text" id="userName" placeholder="Username (3-32 chars)" required minlength="3" maxlength="32"
+                                   class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                            <input type="password" id="userPassword" placeholder="Password (min. 8 characters)" required minlength="8"
+                                   class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                            <select id="userRole" required
+                                    class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 md:py-2 px-4 rounded-lg text-sm transition-colors shadow-sm">
+                                Add User
+                            </button>
+                        </form>
                         <div id="statusMessage" class="hidden px-4 py-3 rounded-lg text-sm font-medium"></div>
                     </div>
                 </div>
 
-                <!-- Info Box -->
                 <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 md:p-6">
                     <h3 class="text-sm font-bold text-blue-900 mb-2 flex items-center">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                         Information
                     </h3>
                     <ul class="text-xs text-blue-800 space-y-1 list-disc list-inside">
-                        <li>Webcams use index (0 = default camera)</li>
-                        <li>RTSP streams require valid stream URL</li>
-                        <li>Cameras are saved to a persistent file</li>
+                        <li>Each user manages their own cameras from their dashboard.</li>
+                        <li>Camera credentials shown below are masked for privacy.</li>
+                        <li>Removing a user also removes all of their cameras.</li>
+                        <li>There must always be at least one admin account.</li>
                     </ul>
                 </div>
             </div>
 
-            <!-- Right Column: Cameras List -->
-            <div class="lg:col-span-2">
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Users -->
                 <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
                     <div class="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 flex justify-between items-center">
                         <h2 class="text-base md:text-lg font-bold text-gray-800 flex items-center">
-                            <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                            Configured Cameras
+                            <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            Users
                         </h2>
                         <span class="text-xs font-semibold text-white bg-primary rounded-full px-3 py-1">
-                            <span id="cameraCount">{{ cameras|length }}</span> Camera<span id="pluralS" >{{ "s" if cameras|length != 1 else "" }}</span>
+                            {{ users|length }} User{{ "s" if users|length != 1 else "" }}
                         </span>
                     </div>
 
                     <div class="p-2 md:p-4">
-                        {% if cameras %}
+                        {% if users %}
+                            <div id="userList" class="space-y-2">
+                                {% for user in users %}
+                                <div class="user-item group flex items-center justify-between p-4 md:p-3 rounded-xl border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md transition-all">
+                                    <div class="flex items-center flex-grow">
+                                        <div class="flex-grow">
+                                            <p class="text-sm font-bold text-gray-800">{{ user.username }}</p>
+                                            <p class="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                                                <span class="px-2 py-1 rounded-full text-xs font-semibold {{ 'bg-green-100 text-green-800' if user.role == 'admin' else 'bg-blue-100 text-blue-800' }}">
+                                                    {{ user.role | capitalize }}
+                                                </span>
+                                                <span class="px-2 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">
+                                                    {{ user.cameras|length }} camera{{ "s" if user.cameras|length != 1 else "" }}
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-1">
+                                        <button onclick="editUser({{ user.id }}, {{ user.username|tojson }}, {{ user.role|tojson }})"
+                                                class="opacity-100 lg:opacity-0 group-hover:opacity-100 p-3 md:p-2 text-gray-400 hover:text-blue-600 transition-all flex-shrink-0"
+                                                title="Edit user">
+                                            <svg class="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                        </button>
+                                        <button onclick="removeUser({{ user.id }})"
+                                                class="opacity-100 lg:opacity-0 group-hover:opacity-100 p-3 md:p-2 text-gray-400 hover:text-red-600 transition-all flex-shrink-0"
+                                                title="Remove user">
+                                            <svg class="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% else %}
+                            <div class="text-center py-12">
+                                <div class="bg-gray-100 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-3">
+                                    <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                </div>
+                                <p class="text-gray-500 text-sm font-medium">No users configured yet.</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- All Cameras (oversight) -->
+                <div class="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+                    <div class="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 flex justify-between items-center">
+                        <h2 class="text-base md:text-lg font-bold text-gray-800 flex items-center">
+                            <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                            All Cameras
+                        </h2>
+                        <span class="text-xs font-semibold text-white bg-primary rounded-full px-3 py-1">
+                            {{ all_cameras|length }} Camera{{ "s" if all_cameras|length != 1 else "" }}
+                        </span>
+                    </div>
+
+                    <div class="p-2 md:p-4">
+                        {% if all_cameras %}
                             <div id="cameraList" class="space-y-2">
-                                {% for name, url in cameras.items() %}
+                                {% for cam in all_cameras %}
                                 <div class="camera-item group flex items-center justify-between p-4 md:p-3 rounded-xl border border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md transition-all">
                                     <div class="flex items-center flex-grow">
                                         <div class="flex-grow">
-                                            <p class="text-sm font-bold text-gray-800">{{ name }}</p>
+                                            <p class="text-sm font-bold text-gray-800">{{ cam.name }}</p>
                                             <p class="text-xs text-gray-500 mt-1">
-                                                {% if url.startswith('webcam:') %}
-                                                    Webcam (Index: {{ url.split(':')[1] }})
-                                                {% else %}
-                                                    RTSP Stream
-                                                {% endif %}
+                                                Owner: <span class="font-semibold">{{ cam.owner.username }}</span>
+                                                &middot;
+                                                {% if cam.url.startswith('webcam:') %}Webcam (Index: {{ cam.url.split(':')[1] }}){% else %}RTSP Stream{% endif %}
                                             </p>
-                                            <p class="text-xs text-gray-400 mt-1 truncate font-mono">{{ url }}</p>
+                                            <p class="text-xs text-gray-400 mt-1 truncate font-mono">{{ mask_camera_url(cam.url) }}</p>
                                         </div>
                                     </div>
-                                    <button onclick="removeCamera('{{ name }}')" 
+                                    <button onclick="removeCameraAdmin({{ cam.id }}, {{ cam.name|tojson }})"
                                             class="opacity-100 lg:opacity-0 group-hover:opacity-100 p-3 md:p-2 text-gray-400 hover:text-red-600 transition-all flex-shrink-0"
                                             title="Remove camera">
                                         <svg class="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
@@ -148,7 +185,6 @@
                                     <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                                 </div>
                                 <p class="text-gray-500 text-sm font-medium">No cameras configured yet.</p>
-                                <p class="text-gray-400 text-xs mt-1">Add a camera to get started.</p>
                             </div>
                         {% endif %}
                     </div>
@@ -157,9 +193,46 @@
         </div>
     </main>
 
+    <!-- Edit User Modal -->
+    <div id="editUserModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+            <div class="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 flex justify-between items-center">
+                <h2 class="text-base md:text-lg font-bold text-gray-800">Edit User</h2>
+                <button onclick="closeEditUserModal()" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <div class="p-4 md:p-6 space-y-6">
+                <form class="space-y-3" onsubmit="updateUser(event)">
+                    <input type="hidden" id="editUserId">
+                    <input type="text" id="editUsername" placeholder="Username" required minlength="3" maxlength="32"
+                           class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                    <input type="password" id="editPassword" placeholder="New Password (leave blank to keep current)" minlength="8"
+                           class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                    <select id="editRole" required
+                            class="w-full px-3 py-3 md:py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none transition-all">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                    <div id="editUserStatus" class="hidden px-4 py-3 rounded-lg text-sm font-medium"></div>
+                    <div class="flex gap-3">
+                        <button type="button" onclick="closeEditUserModal()"
+                                class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 md:py-2 px-4 rounded-lg text-sm transition-colors">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="flex-1 bg-primary hover:bg-red-700 text-white font-bold py-3 md:py-2 px-4 rounded-lg text-sm transition-colors">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <footer class="bg-gray-800 text-white text-center py-3 md:py-4 mt-auto">
-        <p class="text-xs md:text-sm">DLC Surveillance System &copy; 2023 | Camera Management Dashboard</p>
+        <p class="text-xs md:text-sm">DLC Surveillance System &copy; 2025 | Admin Dashboard</p>
     </footer>
 
     <script>
@@ -167,123 +240,121 @@
             const statusDiv = document.getElementById('statusMessage');
             statusDiv.textContent = message;
             statusDiv.classList.remove('hidden');
-            
-            if (type === 'success') {
-                statusDiv.className = 'px-4 py-3 rounded-lg text-sm font-medium bg-green-100 text-green-800';
-            } else {
-                statusDiv.className = 'px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-800';
-            }
-            
-            // Auto hide after 3 seconds
-            setTimeout(() => {
-                statusDiv.classList.add('hidden');
-            }, 3000);
+            statusDiv.className = type === 'success'
+                ? 'px-4 py-3 rounded-lg text-sm font-medium bg-green-100 text-green-800'
+                : 'px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-800';
+            setTimeout(() => statusDiv.classList.add('hidden'), 3000);
         }
 
-        function updateCameraCount() {
-            const items = document.querySelectorAll('.camera-item').length;
-            document.getElementById('cameraCount').textContent = items;
-            const pluralS = document.getElementById('pluralS');
-            pluralS.textContent = items !== 1 ? 's' : '';
-        }
-
-        async function addWebcam(e) {
+        async function addUser(e) {
             e.preventDefault();
-            const name = document.getElementById('webcamName').value.trim();
-            const index = document.getElementById('webcamIndex').value;
+            const username = document.getElementById('userName').value.trim();
+            const password = document.getElementById('userPassword').value.trim();
+            const role = document.getElementById('userRole').value;
 
-            if (!name) {
-                showStatus('Please enter a camera name', 'error');
-                return;
-            }
-
-            try {
-                const response = await fetch('/api/camera/add', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': CSRF_TOKEN,
-                    },
-                    body: JSON.stringify({
-                        camera_name: name,
-                        camera_url: `webcam:${index}`
-                    })
-                });
-
-                const data = await response.json();
-                
-                if (response.ok) {
-                    showStatus(`Camera "${name}" added successfully!`, 'success');
-                    document.getElementById('webcamName').value = '';
-                    document.getElementById('webcamIndex').value = '0';
-                    setTimeout(() => location.reload(), 1000);
-                } else {
-                    showStatus(data.error || 'Failed to add camera', 'error');
-                }
-            } catch (error) {
-                showStatus('Error adding camera: ' + error.message, 'error');
-            }
-        }
-
-        async function addRTSP(e) {
-            e.preventDefault();
-            const name = document.getElementById('rtspName').value.trim();
-            const url = document.getElementById('rtspUrl').value.trim();
-
-            if (!name || !url) {
+            if (!username || !password) {
                 showStatus('Please fill in all fields', 'error');
                 return;
             }
 
             try {
-                const response = await fetch('/api/camera/add', {
+                const response = await fetch('/api/user/add', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': CSRF_TOKEN,
-                    },
-                    body: JSON.stringify({
-                        camera_name: name,
-                        camera_url: url
-                    })
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ username, password, role })
                 });
-
                 const data = await response.json();
-                
                 if (response.ok) {
-                    showStatus(`Camera "${name}" added successfully!`, 'success');
-                    document.getElementById('rtspName').value = '';
-                    document.getElementById('rtspUrl').value = '';
+                    showStatus(`User "${username}" added successfully!`, 'success');
                     setTimeout(() => location.reload(), 1000);
                 } else {
-                    showStatus(data.error || 'Failed to add camera', 'error');
+                    showStatus(data.error || 'Failed to add user', 'error');
                 }
             } catch (error) {
-                showStatus('Error adding camera: ' + error.message, 'error');
+                showStatus('Error adding user: ' + error.message, 'error');
             }
         }
 
-        async function removeCamera(name) {
-            if (!confirm(`Are you sure you want to remove "${name}"?`)) {
+        async function removeUser(userId) {
+            if (!confirm('Are you sure you want to remove this user? This also removes all of their cameras.')) {
                 return;
             }
+            try {
+                const response = await fetch('/api/user/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showStatus('User removed successfully!', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showStatus(data.error || 'Failed to remove user', 'error');
+                }
+            } catch (error) {
+                showStatus('Error removing user: ' + error.message, 'error');
+            }
+        }
+
+        function editUser(id, username, role) {
+            document.getElementById('editUserId').value = id;
+            document.getElementById('editUsername').value = username;
+            document.getElementById('editRole').value = role;
+            document.getElementById('editPassword').value = '';
+            document.getElementById('editUserStatus').classList.add('hidden');
+            document.getElementById('editUserModal').classList.remove('hidden');
+            document.getElementById('editUserModal').classList.add('flex');
+        }
+
+        function closeEditUserModal() {
+            document.getElementById('editUserModal').classList.add('hidden');
+            document.getElementById('editUserModal').classList.remove('flex');
+        }
+
+        async function updateUser(e) {
+            e.preventDefault();
+            const userId = document.getElementById('editUserId').value;
+            const username = document.getElementById('editUsername').value.trim();
+            const password = document.getElementById('editPassword').value;
+            const role = document.getElementById('editRole').value;
+            const statusEl = document.getElementById('editUserStatus');
 
             try {
-                const response = await fetch('/api/camera/remove', {
+                const response = await fetch('/api/user/update', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-Token': CSRF_TOKEN,
-                    },
-                    body: JSON.stringify({
-                        camera_name: name
-                    })
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ user_id: userId, username, password, role })
                 });
-
                 const data = await response.json();
-                
                 if (response.ok) {
-                    showStatus(`Camera "${name}" removed successfully!`, 'success');
+                    showStatus('User updated successfully!', 'success');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    statusEl.textContent = data.error || 'Failed to update user';
+                    statusEl.className = 'px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-800';
+                    statusEl.classList.remove('hidden');
+                }
+            } catch (error) {
+                statusEl.textContent = 'Error: ' + error.message;
+                statusEl.className = 'px-4 py-3 rounded-lg text-sm font-medium bg-red-100 text-red-800';
+                statusEl.classList.remove('hidden');
+            }
+        }
+
+        async function removeCameraAdmin(cameraId, cameraName) {
+            if (!confirm(`Are you sure you want to remove "${cameraName}"?`)) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/admin/camera/remove', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': CSRF_TOKEN },
+                    body: JSON.stringify({ camera_id: cameraId })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showStatus(`Camera "${cameraName}" removed successfully!`, 'success');
                     setTimeout(() => location.reload(), 1000);
                 } else {
                     showStatus(data.error || 'Failed to remove camera', 'error');
@@ -292,9 +363,6 @@
                 showStatus('Error removing camera: ' + error.message, 'error');
             }
         }
-
-        // Initialize camera count
-        updateCameraCount();
     </script>
 </body>
 </html>

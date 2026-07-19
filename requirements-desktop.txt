@@ -1,0 +1,10 @@
+# Extra dependencies for building/running the desktop app, on top of the
+# base requirements.
+-r requirements.txt
+
+# Version floors, not exact pins: pywebview/pyinstaller ship frequent
+# releases tracking new Python versions, and older pins can fail to install
+# at all on a newer interpreter (e.g. no wheel yet for that Python version).
+platformdirs>=4.3
+pywebview>=5.3
+pyinstaller>=6.15

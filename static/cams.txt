@@ -1,3 +1,0 @@
-delspace,http://192.168.1.28:8080/video
-Webcam,webcam:0
-webcam 2,webcam:0

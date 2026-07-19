@@ -1,0 +1,67 @@
+name: Build desktop app
+
+# Deliberately not run on every push - these builds are slow (torch +
+# opencv + ultralytics) and produce multi-GB artifacts. Run manually, or
+# push a version tag like v1.0.0 to build release binaries for all three
+# platforms.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: dlc-surveillance-windows
+          - os: macos-latest
+            artifact_name: dlc-surveillance-macos
+          - os: ubuntu-latest
+            artifact_name: dlc-surveillance-linux
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # pywebview on Linux needs a system GTK+WebKit2 (or Qt+WebEngine)
+      # backend - pip alone can't provide this. If this step is ever
+      # missing/fails on a future runner image, desktop.py still falls
+      # back to opening the system browser instead of crashing outright.
+      - name: Install Linux webview backend
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-webkit2-4.1 libgl1 libglib2.0-0
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-desktop.txt
+
+      - name: Build with PyInstaller
+        run: pyinstaller dlc-surveillance.spec --noconfirm
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          cd dist
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            7z a "../${{ matrix.artifact_name }}.zip" "DLC Surveillance"
+          else
+            zip -r "../${{ matrix.artifact_name }}.zip" "DLC Surveillance"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}.zip
+          retention-days: 30
