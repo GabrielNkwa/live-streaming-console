@@ -1,0 +1,14 @@
+venv/
+build-venv/
+__pycache__/
+*.pyc
+instance/*.db
+instance/.secret_key
+__MACOSX/
+.DS_Store
+*.zip
+.env
+Caddyfile
+# PyInstaller build output
+build/
+dist/

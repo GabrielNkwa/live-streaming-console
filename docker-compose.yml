@@ -1,0 +1,43 @@
+services:
+  dlc:
+    build: .
+    image: dlc-surveillance:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      # Host port on the left - change to e.g. "80:8000" if you're putting
+      # this directly on your LAN without a reverse proxy. Bind to a
+      # specific LAN/Tailscale interface (e.g. "100.x.y.z:8000:8000")
+      # instead of leaving it open on every interface, if you can.
+      - "8000:8000"
+    volumes:
+      # Persists the sqlite database and the auto-generated session secret
+      # key across restarts/rebuilds. Back this directory up.
+      - ./instance:/app/instance
+    # Uncomment to pass a Linux host's USB webcam into the container (only
+    # works with a real Linux Docker host - not Docker Desktop on
+    # Windows/macOS, which can't pass through USB video devices). RTSP/IP
+    # cameras don't need this - they're reached over the network either way.
+    # devices:
+    #   - /dev/video0:/dev/video0
+
+  # Optional reverse proxy for automatic HTTPS if you're exposing this on a
+  # real domain rather than accessing it over Tailscale/your LAN directly.
+  # Uncomment this and see Caddyfile.example, then run:
+  #   docker compose --profile proxy up -d
+  # caddy:
+  #   image: caddy:2-alpine
+  #   restart: unless-stopped
+  #   profiles: ["proxy"]
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile
+  #     - caddy_data:/data
+  #   depends_on:
+  #     - dlc
+
+# volumes:
+#   caddy_data:

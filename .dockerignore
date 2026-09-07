@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.git/
+.pytest_cache/
+__MACOSX/
+.DS_Store
+*.zip
+instance/
+.env
+test_app.py

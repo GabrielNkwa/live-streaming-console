@@ -14,6 +14,7 @@ import logging
 import ipaddress
 import os
 import secrets
+import sys
 import re
 from functools import wraps
 from datetime import timedelta
@@ -24,13 +25,63 @@ logger = logging.getLogger(__name__)
 
 logger.info("Starting Flask app initialization")
 
-app = Flask(__name__, static_url_path=None)
+def bundle_dir():
+    """Directory containing read-only bundled resources (the model file,
+    templates/, static/). Under a PyInstaller build this is the extracted
+    bundle directory (sys._MEIPASS), not the current working directory -
+    otherwise a relative path like 'yolo11n.pt' only resolves correctly if
+    the app happens to be launched from that exact directory."""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return sys._MEIPASS
+    return os.path.dirname(os.path.abspath(__file__))
 
-secret_key = os.environ.get('FLASK_SECRET_KEY')
-if not secret_key:
-    secret_key = secrets.token_urlsafe(32)
-    logger.warning("Using fallback ephemeral secret key. Set FLASK_SECRET_KEY in production.")
-app.secret_key = secret_key
+# root_path is passed explicitly (rather than relying on Flask's own
+# __file__-based auto-detection, which can be unreliable inside a frozen
+# PyInstaller bundle) so templates/static are found correctly either way -
+# bundle_dir() already returns the same value Flask would have auto-detected
+# when not frozen, so this changes nothing for normal/Docker runs.
+#
+# instance_path is set by the desktop entrypoint (desktop.py) to an
+# OS-appropriate, writable, per-user app-data directory (e.g.
+# %APPDATA%\DLC Surveillance). Left unset for Docker/server deployments,
+# where Flask's normal <root>/instance default (bind-mounted in Docker) is
+# correct as-is.
+app = Flask(
+    __name__,
+    static_url_path=None,
+    root_path=bundle_dir(),
+    instance_path=os.environ.get('APP_INSTANCE_PATH'),
+)
+
+def _load_or_create_secret_key():
+    env_key = os.environ.get('FLASK_SECRET_KEY')
+    if env_key:
+        return env_key
+    # No explicit key configured - persist a generated one to disk instead of
+    # regenerating on every restart, which would otherwise silently log out
+    # every user (and invalidate every CSRF token) each time the process
+    # restarts. This is a reasonable default for a single-instance
+    # self-hosted deployment; set FLASK_SECRET_KEY explicitly if you ever
+    # run more than one instance/replica sharing the same database.
+    os.makedirs(app.instance_path, exist_ok=True)
+    key_path = os.path.join(app.instance_path, '.secret_key')
+    if os.path.exists(key_path):
+        with open(key_path, 'r') as f:
+            existing = f.read().strip()
+        if existing:
+            logger.info("Loaded persistent secret key from %s", key_path)
+            return existing
+    generated = secrets.token_urlsafe(32)
+    with open(key_path, 'w') as f:
+        f.write(generated)
+    try:
+        os.chmod(key_path, 0o600)
+    except OSError:
+        pass
+    logger.warning("Generated a new persistent secret key at %s. Set FLASK_SECRET_KEY explicitly in production.", key_path)
+    return generated
+
+app.secret_key = _load_or_create_secret_key()
 
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
@@ -205,7 +256,7 @@ def is_safe_camera_url(camera_url):
     if camera_url.startswith('webcam:'):
         try:
             index = int(camera_url.split(':', 1)[1])
-            return 0 <= index <= 4
+            return 0 <= index <= 9
         except ValueError:
             return False
     parsed = urlparse(camera_url)
@@ -216,7 +267,6 @@ def is_safe_camera_url(camera_url):
     if _is_blocked_host(parsed.hostname):
         return False
     return True
-
 
 def is_admin():
     return current_user.is_authenticated and current_user.role == 'admin'
@@ -247,7 +297,6 @@ def validate_csrf_token():
             token = token or payload.get('csrf_token')
     return bool(token and secrets.compare_digest(str(token), str(session_token)))
 
-
 @app.before_request
 def enforce_security_headers_and_csrf():
     if request.method in ('POST', 'PUT', 'PATCH', 'DELETE') and not validate_csrf_token():
@@ -256,10 +305,9 @@ def enforce_security_headers_and_csrf():
             return jsonify({'success': False, 'error': 'Invalid CSRF token'}), 403
         return 'Invalid CSRF token', 403
 
-
 @app.context_processor
 def inject_csrf_token():
-    return {'csrf_token': generate_csrf_token()}
+    return {'csrf_token': generate_csrf_token(), 'mask_camera_url': mask_camera_url}
 
 
 def load_cameras_for_user(user_id):
@@ -294,6 +342,8 @@ def remove_camera_file(name, owner_id):
 def index():
     if current_user.is_authenticated:
         return redirect(url_for('dashboard'))
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
     return render_template('login.html')
 
 
@@ -314,13 +364,15 @@ def login():
 
 @app.route('/dashboard')
 @login_required
+@login_required
 def dashboard():
     cameras = load_cameras_for_user(current_user.id)
     selected_camera = session.get('selected_camera')
     if selected_camera not in cameras:
         session.pop('selected_camera', None)
         selected_camera = None
-    return render_template('index.html', cameras=cameras, selected_camera=selected_camera)
+    return render_template('index.html', cameras=cameras, selected_camera=selected_camera,
+                            camera_limit=MAX_CAMERAS_PER_USER)
 
 
 @app.route('/admin')
@@ -516,6 +568,7 @@ def api_admin_remove_camera():
 
 @app.route('/camera_status')
 @login_required
+@login_required
 def camera_status():
     cameras = load_cameras_for_user(current_user.id)
     selected = session.get('selected_camera')
@@ -551,6 +604,7 @@ def camera_status():
 
 @app.route('/select_camera', methods=['POST'])
 @login_required
+@login_required
 def select_camera():
     selected_camera = request.form.get('selected_camera', '').strip()
     logger.info(f"Camera selection request: {selected_camera}")
@@ -574,6 +628,7 @@ logger.info("Test route registered")
 
 @app.route('/golive')
 @login_required
+@login_required
 def video_feed():
     cameras = load_cameras_for_user(current_user.id)
     camera_url = cameras.get(session.get('selected_camera', ''), '')
@@ -584,6 +639,7 @@ def video_feed():
 
 
 @app.route('/goai')
+@login_required
 @login_required
 def video_feedai():
     cameras = load_cameras_for_user(current_user.id)
@@ -596,6 +652,7 @@ def video_feedai():
 
 @app.route('/video_feed/<camera_name>')
 @login_required
+@login_required
 def video_feed_named(camera_name):
     cameras = load_cameras_for_user(current_user.id)
     camera_url = cameras.get(camera_name)
@@ -606,6 +663,7 @@ def video_feed_named(camera_name):
 
 
 @app.route('/video_feed_ai/<camera_name>')
+@login_required
 @login_required
 def video_feed_ai_named(camera_name):
     cameras = load_cameras_for_user(current_user.id)
@@ -911,7 +969,9 @@ def mjpeg_generator(camera_url, apply_ai):
 
 @app.route('/logout', methods=['POST'])
 @login_required
+@login_required
 def logout():
+    if not validate_csrf_token():
     if not validate_csrf_token():
         return redirect(url_for('index'))
     # Camera streams are shared, global resources keyed by URL, not by session -
